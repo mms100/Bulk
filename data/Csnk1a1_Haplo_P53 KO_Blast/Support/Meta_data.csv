@@ -1,0 +1,11 @@
+﻿File name,Sample name ,Condition
+00_1_Csnk_p53_primary_leukemic_specimen,00_1,Blast
+93_3_Csnk_p53_sec_recipient,93_3,Blast
+93_4_Csnk_p53_sec_recipient,93_4,Blast
+94_1_Csnk_p53_sec_recipient,94_1,Blast
+96_3_MxCre_ntg,96_3,WT
+96_4_MxCre_ntg,96_4,WT
+97_1_MxCre_ntg,97_1,WT
+98_1_MxCre_p53,98_1,WT
+98_3_MxCre_p53,98_3,WT
+99_1_Csnk_p53_not_leukemic,99_1,WT

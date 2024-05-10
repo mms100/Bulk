@@ -1,0 +1,130 @@
+---
+title: "Ursula's-cibersortx_Script"
+output: html_document
+date: "2022-10-19"
+---
+---
+title: "MDS-deconv"
+output:
+  pdf_document: default
+  html_document: default
+date: "2022-10-11"
+---
+```{r}
+#load libary
+library(Seurat)
+require(GEOquery)
+require(DESeq2)
+require(ggraph)
+library(readr)
+library(limma)
+library(readxl)
+setwd("/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Refereces/code")
+devtools::load_all("./rnamagnet/")
+```
+
+
+```{r}
+##reference prep.
+merged_oldnew_res0.3 <- readRDS("/Volumes/groups/Group_RS/Csnk1a1 omics/Csnk1a1 EGR1 Haploinsufficiency/merged_oldnew_res0.3.rds")
+```
+
+```{r}
+merged<-merged_oldnew_res0.3
+#tmp <- FindAllMarkers(merged, test.use = "roc", return.thresh = 0)
+#write.table(tmp, file = "/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Refereces/Ursula's-mouse/Ref_Cell_type.txt", quote = T, row.names = T, sep = "\t", col.names = NA)
+setwd("/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Refereces/Ursula's-mouse")
+tmp<- read.delim(file = "Ref_Cell_type.txt", sep = "\t", header = T)
+rownames(tmp)<- tmp$X
+tmp<- tmp[,-1]
+usegenes <- unique(tmp$gene[(tmp$myAUC > 0.8 |tmp$myAUC < 0.2) ])
+rawdata<- merged@assays$RNA@counts
+norm_matrix <- RelativeCounts(rawdata, scale.factor = 1e6, verbose = TRUE)
+
+cpm_seurat<- CreateSeuratObject(norm_matrix, meta.data = merged_oldnew_res0.3@meta.data, project = "CPM")
+
+
+```
+
+
+
+```{r}
+cpm_seurat<- SetIdent(cpm_seurat, value = cpm_seurat@meta.data$identity_names)
+
+mean_by_cluster <- do.call(cbind, lapply(unique(Idents(cpm_seurat)), function(x) {
+  apply(GetAssayData(cpm_seurat, slot = "data")[usegenes,colnames(cpm_seurat)][,Idents(cpm_seurat) == x], 1, mean)
+}))
+
+colnames(mean_by_cluster) <- unique(Idents(cpm_seurat))
+
+
+```
+
+
+
+```{r}
+#import query to run cibersortx in r
+cpm<-read.delim(file = "/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Query/Matrixs/cpm-trail_1.txt", header = T, sep = "\t")
+rownames(cpm)<- cpm$X
+cpm<- cpm[,-1]
+colnames(cpm)<- c("WT_MxCre","WT_MxCre", "WT_MxCre", "CSNK1a1","CSNK1a1","CSNK1a1","EGR1","EGR1","EGR1","EGR1_CSNK1a1","EGR1_CSNK1a1","EGR1_CSNK1a1")
+  
+design<- as.factor(c("1","1", "1", "2","2","2","3","3","3","4","4","4"))
+```
+
+```{r}
+#Run Cibersortx
+
+CIBER_MDS<- runCIBERSORT(cpm,mean_by_cluster,design, mc.cores=1)
+```
+
+```{r, echo=FALSE, fig.width = 20, fig.height = 20}
+##boxplot fraction
+
+ggplot(CIBER_MDS,aes(x=SampleID,y=Fraction,fill=CellType))+
+  geom_boxplot()+
+  ggtitle('All clusters per region')+
+  facet_wrap(.~CellType, scales = "free")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), text = element_text(size = 20))
+
+```
+
+
+
+```{r, echo=FALSE, fig.width =20, fig.height = 20}
+##barplot
+
+
+paletteLength = 32
+myColor = colorRampPalette(c("#88CCEE", "#CC6677", "#DDCC77", "#117733", "#332288", "#AA4499", "#44AA99", "#999933", "#882255", "#661100", "#6699CC"))(paletteLength)
+
+
+ggplot(CIBER_MDS,aes(x=SampleID,y=Fraction,fill=CellType))+
+  geom_bar(position="fill", stat="identity")+
+  facet_wrap(.~SampleID,nrow = 1, ncol = 4,scales = 'free_x')+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45), text = element_text(size = 20))+scale_fill_manual(values = myColor)+
+scale_color_manual(values = myColor)
+
+```
+
+
+#filtering the most interesting pattern
+```{r}
+CIBER_MDS_sub <- rbind(filter(CIBER_MDS, CellType == "LT_HSC" ),
+                                 filter(CIBER_MDS, CellType == "ST_HSC"),
+                                 filter(CIBER_MDS, CellType == "MPP2"))
+
+
+
+ggplot(CIBER_MDS_sub,aes(x=SampleID,y=Fraction,fill=CellType))+
+  geom_boxplot()+
+  ggtitle('All clusters per region')+
+  facet_wrap(.~CellType, scales = "free")+
+  theme_minimal()+theme(legend.position = "none")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), text = element_text(size = 20))
+
+
+```
+

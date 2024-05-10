@@ -1,0 +1,93 @@
+---
+title: "Untitled"
+output: html_document
+date: "2022-10-13"
+---
+
+```{r}
+#load packages
+library(tidyverse)
+library(DT)
+library(gt)
+library(plotly)
+library(tidyverse)
+library(edgeR)
+library(matrixStats)
+library(cowplot)
+library(sva)
+```
+
+
+```{r}
+#data check-QC
+setwd("/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Query")
+targets_1 <- read_csv("target.csv")
+setwd("/Volumes/home/Data analysis/MDS-Cibersortx/MDS_R/Query/Matrixs")
+counts_1<-read.delim(file = "counts.txt", header = T, sep = "\t")
+rownames(counts_1)<- counts_1$X
+counts_1<- counts_1[,-1]
+colnames(counts_1)<- targets_1$`Sample name`
+counts_1<- as.matrix(counts_1)
+myDGEList <- DGEList(counts_1)
+myDGEList.filtered.norm <- calcNormFactors(myDGEList, method = "TMM")
+log2.cpm.filtered.norm <- cpm(myDGEList.filtered.norm, log=TRUE)
+```
+
+#Before Batch correction 
+
+```{r}
+#plot pca
+group <- factor(targets_1$Condition)
+sample_label<- targets_1$`Sample name`
+pca.res <- prcomp(t(log2.cpm.filtered.norm), scale.=F, retx=T)
+pc.var <- pca.res$sdev^2 # sdev^2 captures these eigenvalues from the PCA result
+pc.per <- round(pc.var/sum(pc.var)*100, 1) 
+pca.res.df <- as_tibble(pca.res$x)
+ggplot(pca.res.df) +
+  aes(x=PC1, y=PC2, label=sample_label, color = group) +
+  geom_point(size=4) +
+  xlab(paste0("PC1 (",pc.per[1],"%",")")) + 
+  ylab(paste0("PC2 (",pc.per[2],"%",")")) +
+   geom_text(aes(label=sample_label), colour= "black")+
+  coord_fixed() +
+  ggtitle("PCA-Before Batch correction")+
+  theme_bw()
+```
+
+
+
+```{r}
+# apply combat
+batch<- c(rep(1,2), rep(2,1), rep(3,1), rep(1,2), rep(3,1), rep(1,1), rep(2,1), rep(1,3))
+cov_1<- c(rep(1,3), rep(2,3), rep(3,3), rep(4,3))
+adjusted<- ComBat_seq(counts_1, batch = batch, group = cov_1)
+colnames(adjusted)<- targets_1$Condition
+myDGEList_adj <- DGEList(adjusted)
+myDGEList.filtered.norm_adj <- calcNormFactors(myDGEList_adj, method = "TMM")
+log2.cpm.filtered.norm_adj <- cpm(myDGEList.filtered.norm_adj, log=T)
+cpm_adjusted<- cpm(myDGEList.filtered.norm_adj, log=F)
+write.table(cpm_adjusted, file = "query-batch-corrected.txt", row.names = T, sep = "\t", col.names = NA)
+```
+
+#After Batch correction 
+
+
+```{r}
+#plot pca
+
+pca.res <- prcomp(t(log2.cpm.filtered.norm_adj), scale.=F, retx=T)
+pc.var <- pca.res$sdev^2 # sdev^2 captures these eigenvalues from the PCA result
+pc.per <- round(pc.var/sum(pc.var)*100, 1) 
+pca.res.df <- as_tibble(pca.res$x)
+ggplot(pca.res.df) +
+  aes(x=PC1, y=PC2, label=sample_label, color = group) +
+  geom_point(size=4) +
+  xlab(paste0("PC1 (",pc.per[1],"%",")")) + 
+  ylab(paste0("PC2 (",pc.per[2],"%",")")) +
+   geom_text(aes(label=sample_label), colour= "black")+
+  coord_fixed() + ggtitle("PCA-After Batch correction")+
+  theme_bw()
+```
+
+
+
